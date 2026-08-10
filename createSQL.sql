@@ -9,3 +9,5 @@ CREATE TABLE IF NOT EXISTS compress ( dirPath TEXT, fileName TEXT, progress NUMB
 CREATE TABLE IF NOT EXISTS merge ( mergeID TEXT, videoID TEXT );
 DROP TABLE toMerge;
 CREATE TABLE IF NOT EXISTS toMerge ( dirPath TEXT, fileNameList TEXT, outputPath TEXT, outputName TEXT, progress NUMBER );
+DROP TABLE IF EXISTS toConfigure;
+CREATE TABLE IF NOT EXISTS toConfigure ( dirPath TEXT, fileName TEXT, audioChannel TEXT, progress NUMBER );

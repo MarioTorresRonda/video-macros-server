@@ -3,6 +3,7 @@ import cors from 'cors'
 import { addCompress, compressD, readCompress } from "./DAO/compress.js";
 import { addMerge, mergeD } from "./DAO/merge.js";
 import { openDB } from "./util/sqliteUtils.js";
+import { addConfigure, configureD } from "./DAO/configureVideo.js";
 
 
 const db = openDB();
@@ -28,9 +29,15 @@ app.get('/toMerge', (req, res) => {
   res.send( addMerge( db, dirPath, uploadPath, newFileName, filesCount, files ) );
 });
 
+app.get('/toConfigurate', (req, res) => {
+  const { dirPath, fileName, audioChannel } = req.query;
+  res.send( addConfigure( db, dirPath, fileName, audioChannel ) );
+});
+
 app.listen(5000, () => {
   console.log("Server VideoMacros Iniciado");
 });
 
 compressD( db );
 mergeD( db );
+configureD( db );

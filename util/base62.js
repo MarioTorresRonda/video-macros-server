@@ -22,3 +22,9 @@ export function decodeBase62(str) {
 
   return num;
 }
+
+export function extractIdFromVideo( file ) {
+  const fileName = file.substr(0, file.lastIndexOf(".") );
+  const fileId = decodeBase62( fileName.substr( fileName.indexOf("›") + 1 ) );
+  return fileId;
+}

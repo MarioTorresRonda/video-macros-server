@@ -4,12 +4,18 @@ import { execDB, readDB } from "../util/sqliteUtils.js";
 import path from 'node:path';
 import { sleep } from "../util/time.js";
 import { addVideo, readMaxVideoID } from "./video.js";
-import { encodeBase62 } from "../util/base62.js";
+import { encodeBase62, extractIdFromVideo } from "../util/base62.js";
 
 export async function addMerge( db, dirPath, uploadPath, newFileName, filesCount, files ) {
     const query = `INSERT INTO toMerge( dirPath, fileNameList, outputPath, outputName, progress ) VALUES ( ?, ?, ?, ?, 0 )`
     //console.log( "Inserted merge file: ", query, [ dirPath, JSON.stringify( files ), uploadPath, newFileName ] );
     await execDB( db, query, [ dirPath, JSON.stringify( files ), uploadPath, newFileName ] );
+}
+
+export async function addMergeList( db, mergeID, videoID ) {
+    const query = `INSERT INTO merge ( mergeID, videoID ) VALUES ( ?, ? )`
+    //console.log( "Inserted mergeList file: ", query, [ mergeID, videoID ] );
+    await execDB( db, query, [ mergeID, videoID ] );
 }
 
 export async function readMerge( db ) {
@@ -51,21 +57,25 @@ export async function mergeD( db ) {
         if ( toMergeFiles.length == 0 ) {
             //console.log( "No hay archivos para comprimir")       
         }else{
-            console.log( "Se inicia compresion de " + toMergeFiles.length)       
-            for (const file of toMergeFiles) {
+            console.log( "Se inicia compresion de " + toMergeFiles.length)   
+            for (let i = 0; i < toMergeFiles.length; i++) {
+                const file = toMergeFiles[i];
                 try{
                     const newProgressFunction = (val) => { process( db, file.outputPath, file.outputName, val ) }
-                    const maxId = await readMaxVideoID(db);
+                    const maxId = Number(await readMaxVideoID(db)) + 1;
                     const newFileName = `${file.outputName}›${encodeBase62(maxId)}.mp4`;
-                    addVideo( db, maxId, '', '[]', newFileName )
-                    const response = await mergeFile(file.dirPath, file.files, path.join( file.outputPath, newFileName), newProgressFunction );   
-                    deleteMerge(db, file.dirPath, file.outputName )        
+                    await addVideo( db, maxId, '', '[]', newFileName )
+                    const response = await mergeFile(file.dirPath, file.files, path.join( file.outputPath, newFileName), newProgressFunction );  
+                    file.files.forEach( async (f) => {
+                        await addMergeList( db, maxId, extractIdFromVideo( f ) );
+                    } )
+                    await deleteMerge(db, file.dirPath, file.outputName )        
                 }catch(e) {
                     console.log( e )
                 }
             }
         }
-        await sleep(3000);
+        await sleep(10000);
     }
 }
 
