@@ -40,7 +40,9 @@ export function mergeVideos(dirPath, videoList, outputFile, callback, onProgress
         0
       );
 
-      runConcat(inputFiles, outputFile, totalDuration, callback, onProgress);
+      const audioStreams = summarizeStreams(probes[0]).audioCount;
+
+      runConcat(inputFiles, outputFile, audioStreams, totalDuration, callback, onProgress);
     })
     .catch((err) => callback(new Error(`ffprobe failed: ${err.message}`)));
 }
@@ -109,60 +111,71 @@ function timemarkToSeconds(timemark) {
   return hours * 3600 + minutes * 60 + seconds;
 }
 
-function runConcat(inputFiles, outputFile, totalDuration, callback, onProgress) {
-  // Build a temp concat list file, e.g.:
-  //   file '/abs/path/part1.mp4'
-  //   file '/abs/path/part2.mp4'
-  const listPath = path.join(
-    os.tmpdir(),
-    `concat-${crypto.randomBytes(6).toString('hex')}.txt`
-  );
+function runConcat(inputFiles, outputFile, audioStreams, totalDuration, callback, onProgress) {
 
-  const listContent = inputFiles
-    .map((file) => `file '${file.replace(/'/g, "'\\''")}'`)
-    .join('\n');
+  const videosLenght = inputFiles.length;
 
-  fs.writeFileSync(listPath, listContent);
+  let command = ffmpeg();
+  for (const video of inputFiles) {
+    command = command.input(video)
+  }
 
-  const cleanup = () => {
-    fs.unlink(listPath, () => {});
-  };
+  const complexFilterArray = [
+    videoFilter( videosLenght ),
+    ...(Array.from({ length: audioStreams }, (_, index) => index)).map( ( d ) => audioFilter( videosLenght, d ) )
+  ]
+  console.log( complexFilterArray )
 
-  ffmpeg()
-    .input(listPath)
-    .inputOptions(['-f concat', '-safe 0'])
-    .outputOptions(['-c copy'])
-    .on('start', (cmdLine) => {
-      console.log(`[mergeVideos] started -> ${outputFile}`);
-      console.log(`[mergeVideos] ffmpeg command: ${cmdLine}`);
-    })
-    .on('progress', (progress) => {
-      // fluent-ffmpeg can't derive percent on its own here (input is a concat
-      // list, not a probeable media file), so we calculate it ourselves from
-      // the elapsed timemark vs. the total duration we summed up beforehand.
-      const elapsedSeconds = timemarkToSeconds(progress.timemark);
-      const percent = totalDuration > 0
-        ? Math.min(100, (elapsedSeconds / totalDuration) * 100)
-        : null;
+  command.complexFilter(complexFilterArray).outputOptions([
+    '-map [v]',
+    ...(Array.from({ length: audioStreams }, (_, index) => index)).map( ( d ) => `-map [a${d}]` )
+  ]).on('start', (cmdLine) => {
+    console.log(`[mergeVideos] started -> ${outputFile}`);
+    console.log(`[mergeVideos] ffmpeg command: ${cmdLine}`);
+  })
+  .on('progress', (progress) => {
+    // fluent-ffmpeg can't derive percent on its own here (input is a concat
+    // list, not a probeable media file), so we calculate it ourselves from
+    // the elapsed timemark vs. the total duration we summed up beforehand.
+    const elapsedSeconds = timemarkToSeconds(progress.timemark);
+    const percent = totalDuration > 0
+      ? Math.min(100, (elapsedSeconds / totalDuration) * 100)
+      : null;
 
-      const enrichedProgress = { ...progress, percent };
+    const enrichedProgress = { ...progress, percent };
 
-      if (typeof onProgress === 'function') {
-        onProgress(enrichedProgress);
-      } else {
-        const pct = percent !== null ? percent.toFixed(1) : '?';
-        console.log(`[mergeVideos] ${path.basename(outputFile)}: ${pct}%`);
-      }
-    })
-    .on('error', (err, _stdout, stderr) => {
-      cleanup();
-      console.error(`[mergeVideos] failed: ${err.message}`);
-      callback(new Error(`${err.message}\n${stderr || ''}`));
-    })
-    .on('end', () => {
-      cleanup();
-      console.log(`[mergeVideos] finished: ${outputFile}`);
-      callback(null, outputFile);
-    })
-    .save(outputFile);
+    if (typeof onProgress === 'function') {
+      onProgress(enrichedProgress);
+    } else {
+      const pct = percent !== null ? percent.toFixed(1) : '?';
+      console.log(`[mergeVideos] ${path.basename(outputFile)}: ${pct}%`);
+    }
+  })
+  .on('error', (err, _stdout, stderr) => {
+    console.error(`[mergeVideos] failed: ${err.message}`);
+    callback(new Error(`${err.message}\n${stderr || ''}`));
+  })
+  .on('end', () => {
+    console.log(`[mergeVideos] finished: ${outputFile}`);
+    callback(null, outputFile);
+  })
+  .save(outputFile);
+}
+
+function videoFilter( videosLenght ) {
+  const filter = {};
+  filter.filter = 'concat',
+  filter.options = { n: videosLenght, v: 1, a: 0 },
+  filter.inputs = (Array.from({ length: videosLenght }, (_, index) => index)).map( ( d ) => `${d}:v` ) ,
+  filter.outputs = 'v'
+  return filter;
+}
+
+function audioFilter( videosLenght, audioStream ) {
+  const filter = {};
+  filter.filter = 'concat',
+  filter.options = { n: videosLenght, v: 0, a: 1 },
+  filter.inputs = (Array.from({ length: videosLenght }, (_, index) => index)).map( ( d ) => `${d}:a:${audioStream}` ) ,
+  filter.outputs = 'a' + audioStream;
+  return filter;
 }
