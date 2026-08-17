@@ -41,10 +41,8 @@ export default function configurateVideo(sourcePath, videoName, audioChannel, ca
             .outputOptions([
                 '-c copy',
                 '-map 0:v:0',
+                `-map 0:a:${audioChannel}`
             ]);
-
-        // Map + transcode every audio stream individually to Opus.
-        command.audioFilters('c0=c'+audioChannel)
 
         command
             .format('mp4')

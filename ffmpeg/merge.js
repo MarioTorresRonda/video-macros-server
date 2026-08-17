@@ -131,7 +131,7 @@ function runConcat(inputFiles, outputFile, totalDuration, callback, onProgress) 
   ffmpeg()
     .input(listPath)
     .inputOptions(['-f concat', '-safe 0'])
-    .outputOptions(['-c copy'])
+    .outputOptions(['-c copy', '-map 0:v', '-map 0:a'])
     .on('start', (cmdLine) => {
       console.log(`[mergeVideos] started -> ${outputFile}`);
       console.log(`[mergeVideos] ffmpeg command: ${cmdLine}`);
