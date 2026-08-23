@@ -24,7 +24,12 @@ export function decodeBase62(str) {
 }
 
 export function extractIdFromVideo( file ) {
+  if ( file == null || file.length == 0 ) {
+    return null;
+  }
+
   const fileName = file.substr(0, file.lastIndexOf(".") );
-  const fileId = decodeBase62( fileName.substr( fileName.indexOf("›") + 1 ) );
+  const confIndex = fileName.indexOf("▼");
+  const fileId = decodeBase62( fileName.substr( fileName.indexOf("›") + 1, confIndex != -1 ? confIndex : undefined ) );
   return fileId;
 }

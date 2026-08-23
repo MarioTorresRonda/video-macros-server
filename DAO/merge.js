@@ -3,7 +3,7 @@ import { mergeVideos } from "../ffmpeg/merge.js";
 import { execDB, readDB } from "../util/sqliteUtils.js";
 import path from 'node:path';
 import { sleep } from "../util/time.js";
-import { addVideo, readMaxVideoID } from "./video.js";
+import { addVideo, deleteVideo, readMaxVideoID } from "./video.js";
 import { encodeBase62, extractIdFromVideo } from "../util/base62.js";
 
 export async function addMerge( db, dirPath, uploadPath, newFileName, filesCount, files ) {
@@ -19,7 +19,7 @@ export async function addMergeList( db, mergeID, videoID ) {
 }
 
 export async function readMerge( db ) {
-    const query = 'SELECT dirPath, fileNameList, outputPath, outputName FROM toMerge;';
+    const query = 'SELECT dirPath, fileNameList, outputPath, outputName, progress FROM toMerge;';
     //console.log( query );
     
     const result = await readDB( db, query);
@@ -29,7 +29,8 @@ export async function readMerge( db ) {
             dirPath: row.dirPath, 
             files: JSON.parse( row.fileNameList ),
             outputPath : row.outputPath,
-            outputName  : row.outputName
+            outputName  : row.outputName,
+            progress: row.progress
         } );
     });
     return toMergeFiles;
@@ -57,12 +58,13 @@ export async function mergeD( db ) {
         if ( toMergeFiles.length == 0 ) {
             //console.log( "No hay archivos para comprimir")       
         }else{
-            console.log( "Se inicia compresion de " + toMergeFiles.length)   
+            console.log( "Se inicia merge de " + toMergeFiles.length)   
             for (let i = 0; i < toMergeFiles.length; i++) {
                 const file = toMergeFiles[i];
+                const maxId = Number(await readMaxVideoID(db)) + 1;
+
                 try{
                     const newProgressFunction = (val) => { process( db, file.outputPath, file.outputName, val ) }
-                    const maxId = Number(await readMaxVideoID(db)) + 1;
                     const newFileName = `${file.outputName}›${encodeBase62(maxId)}.mp4`;
                     await addVideo( db, maxId, '', '[]', newFileName )
                     const response = await mergeFile(file.dirPath, file.files, path.join( file.outputPath, newFileName), newProgressFunction );  
@@ -71,7 +73,8 @@ export async function mergeD( db ) {
                     } )
                     await deleteMerge(db, file.dirPath, file.outputName )        
                 }catch(e) {
-                    console.log( e )
+                    await deleteVideo( db, maxId );
+                    console.log( "ERRROR", e )
                 }
             }
         }

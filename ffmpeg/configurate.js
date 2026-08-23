@@ -2,7 +2,13 @@ import ffmpeg from 'fluent-ffmpeg';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export default function configurateVideo(sourcePath, videoName, audioChannel, callback, onProgress) {
+const camStates = {
+    untouched: "-1",
+    remove: "0",
+    add: "1",
+}
+
+export default function configurateVideo(sourcePath, videoName, audioChannel, cam, callback, onProgress) {
     const inputFile = path.join(sourcePath, videoName);
 
     if (!fs.existsSync(inputFile)) {
@@ -12,8 +18,30 @@ export default function configurateVideo(sourcePath, videoName, audioChannel, ca
     if (!fs.existsSync(sourcePath)) {
         fs.mkdirSync(sourcePath, { recursive: true });
     }
+    
+    let suffix = "▼"
+    let videoFilters = null; 
+    
+    switch (cam) {
+        case camStates.untouched:
+            suffix += "COM" 
+            break;
+        case camStates.remove:
+            videoFilters = "crop=1920:1080:1:1"
+            suffix += "NOCAM" 
+            break;
+        case camStates.add:
+            suffix += "CAM" 
+            break;
+        default:
+            return callback(new Error('Cam state not correct'));
+    }
 
-    const outputName = path.parse(videoName).name + '_COM.mkv';
+    if ( audioChannel != -1  ) {
+        suffix += "_A"+audioChannel; 
+    }
+
+    const outputName = path.parse(videoName).name + suffix  + '.mp4';
     const outputFile = path.join(sourcePath, outputName);
 
     // Inspect the source first so we know how many audio streams to map/convert.
@@ -32,20 +60,23 @@ export default function configurateVideo(sourcePath, videoName, audioChannel, ca
             return callback(new Error('No video stream found in source file'));
         }
 
-        const command = ffmpeg(inputFile)
-            .inputOptions([
-                '-hwaccel cuda',
-                '-hwaccel_output_format cuda',
-            ])
-            .videoCodec('h264_nvenc')
-            .outputOptions([
-                '-c copy',
-                '-map 0:v:0',
-                `-map 0:a:${audioChannel}`
-            ]);
+
+        let command = ffmpeg(inputFile)
+        .videoCodec('hevc_nvenc');
+
+        if ( videoFilters ) {
+            command = command.videoFilters(videoFilters)
+        } 
+        command = command.outputOptions([
+            '-map 0:v:0',
+            audioChannel == -1 ? '-map a:*' : `-map 0:a:${audioChannel}`,
+            '-b:v 13M',          // Target bitrate (13,000 kbps)
+            '-maxrate:v 15M',    // Allow small spikes for complex scenes
+            '-bufsize:v 26M',    // Buffer size (typically 2x maxrate)
+            '-preset p6'         // High quality encoding preset
+        ]);
 
         command
-            .format('mp4')
             .on('start', (cmdLine) => {
                 console.log(`[configurateVideo] started: ${videoName}`);
                 console.log(`[configurateVideo] ffmpeg command: ${cmdLine}`);

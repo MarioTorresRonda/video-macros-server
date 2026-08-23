@@ -3,20 +3,20 @@ import configurateVideo from "../ffmpeg/configurate.js";
 import { execDB, readDB } from "../util/sqliteUtils.js";
 import { sleep } from "../util/time.js";
 
-export async function addConfigure( db, path, videoName, audioChannel ) {
+export async function addConfigure( db, path, videoName, audioChannel, cam ) {
 
-    const query = `INSERT INTO toConfigure (dirPath, fileName, audioChannel, progress ) VALUES ( ?, ?, ?, 0 )`
+    const query = `INSERT INTO toConfigure (dirPath, fileName, audioChannel, cam, progress ) VALUES ( ?, ?, ?, ?, 0 )`
     //console.log( "Inserted configure file: ", query, [ path, videoName, audioChannel ] );
-    await execDB( db, query, [ path, videoName, audioChannel ] );
+    await execDB( db, query, [ path, videoName, audioChannel, cam ] );
 }
 
 export async function readConfigure( db ) {
-    const query = 'SELECT dirPath, fileName, audioChannel FROM toConfigure;';
+    const query = 'SELECT dirPath, fileName, progress, audioChannel, cam FROM toConfigure;';
 
     const result = await readDB( db, query);
     const toConfigureiles = [];
     result.forEach( (row) => {
-        toConfigureiles.push( { dirPath: row.dirPath, fileName: row.fileName, audioChannel: row.audioChannel } );
+        toConfigureiles.push( { dirPath: row.dirPath, fileName: row.fileName, progress : row.progress, audioChannel: row.audioChannel, cam : row.cam } );
     });
     return toConfigureiles;
 }
@@ -45,8 +45,9 @@ export async function configureD( db ) {
         }else{
             console.log( "Se inicia configuracion de " + toConfigureiles.length)       
             for (const file of toConfigureiles) {
+                console.log( file );
                 const newProgressFunction = (val) => { process( db, file.dirPath, file.fileName, val ) }
-                const response = await configurateFile(file.dirPath, file.fileName, file.audioChannel, newProgressFunction );   
+                const response = await configurateFile(file.dirPath, file.fileName, file.audioChannel, file.cam, newProgressFunction );   
                 deleteConfigure(db, file.dirPath, file.fileName )        
             }
         }
@@ -54,10 +55,10 @@ export async function configureD( db ) {
     }
 }
 
-function configurateFile( path, videoName, audioChannel, onProcess ) {
+function configurateFile( path, videoName, audioChannel, cam, onProcess ) {
     return new Promise((resolve, reject) => {
         configurateVideo(
-            path, videoName, audioChannel,
+            path, videoName, audioChannel, cam,
             (err, outputFile) => { if (err) { reject( err.message); } resolve(outputFile); },
             (progress) => { onProcess( `${progress.percent ? progress.percent.toFixed(1) : '?'}%` ) }
         );

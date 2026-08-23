@@ -10,13 +10,13 @@ export async function addCompress( db, path, videoName ) {
 }
 
 export async function readCompress( db ) {
-    const query = 'SELECT dirPath, fileName FROM compress;';
+    const query = 'SELECT dirPath, fileName, progress FROM compress;';
     //console.log( query );
     
     const result = await readDB( db, query);
     const toCompressFiles = [];
     result.forEach( (row) => {
-        toCompressFiles.push( { dirPath: row.dirPath, fileName: row.fileName } );
+        toCompressFiles.push( { dirPath: row.dirPath, fileName: row.fileName, progress : row.progress } );
     });
     return toCompressFiles;
 }

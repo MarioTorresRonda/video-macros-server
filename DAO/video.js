@@ -10,6 +10,12 @@ export async function readVideo( db ) {
     console.log( TODO )
 }
 
+export async function deleteVideo( db, id  )  {
+    const query = `DELETE FROM videos where id = ?`
+    //console.log( "DELETE toMerge file: ", query, [ outputPath, outputName ] );
+    await execDB( db, query, [ id ] );
+}
+
 export async function readMaxVideoID( db ) {
     const query = 'SELECT max(id) as mid FROM videos;';
     //console.log( query );
