@@ -69,11 +69,9 @@ export default function configurateVideo(sourcePath, videoName, audioChannel, ca
         } 
         command = command.outputOptions([
             '-map 0:v:0',
-            audioChannel == -1 ? '-map a:*' : `-map 0:a:${audioChannel}`,
-            '-b:v 13M',          // Target bitrate (13,000 kbps)
-            '-maxrate:v 15M',    // Allow small spikes for complex scenes
-            '-bufsize:v 26M',    // Buffer size (typically 2x maxrate)
-            '-preset p6'         // High quality encoding preset
+            audioChannel == -1 ? '-map 0:a' : `-map 0:a:${audioChannel}`,
+            '-rc vbr', '-cq 26', '-b:v 0',          //Encoding info
+            '-preset p4'         // High quality encoding preset
         ]);
 
         command

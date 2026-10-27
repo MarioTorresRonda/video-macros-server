@@ -68,9 +68,10 @@ export async function mergeD( db ) {
                     const newFileName = `${file.outputName}›${encodeBase62(maxId)}.mp4`;
                     await addVideo( db, maxId, '', '[]', newFileName )
                     const response = await mergeFile(file.dirPath, file.files, path.join( file.outputPath, newFileName), newProgressFunction );  
-                    file.files.forEach( async (f) => {
+                    for (let index = 0; index < file.files.length; index++) {
+                        const f = file.files[index];
                         await addMergeList( db, maxId, extractIdFromVideo( f ) );
-                    } )
+                    }
                     await deleteMerge(db, file.dirPath, file.outputName )        
                 }catch(e) {
                     await deleteVideo( db, maxId );
